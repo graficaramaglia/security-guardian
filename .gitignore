@@ -1,0 +1,16 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.sublime-*
+
+# Dipendenze / build
+node_modules/
+vendor/
+*.log
+
+# Archivi generati
+*.zip
