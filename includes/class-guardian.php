@@ -20,6 +20,7 @@ class SG_Guardian {
 	public $db_scanner;
 	public $quarantine;
 	public $two_factor;
+	public $updater;
 	public $admin;
 
 	const OPTION_KEY = 'sg_settings';
@@ -44,6 +45,10 @@ class SG_Guardian {
 		if ( ! empty( $settings['twofactor_enabled'] ) ) {
 			$this->two_factor->boot();
 		}
+
+		// Aggiornamenti automatici da GitHub.
+		$this->updater = new SG_Updater( 'graficaramaglia', 'security-guardian', SG_BASENAME, SG_VERSION );
+		$this->updater->boot();
 
 		// Il firewall deve agire il prima possibile, già a plugins_loaded.
 		if ( ! empty( $settings['firewall_enabled'] ) ) {

@@ -68,7 +68,9 @@ class SG_Admin {
 		}
 		check_admin_referer( 'sg_action' );
 
-		$action = isset( $_POST['sg_do'] ) ? sanitize_key( $_POST['sg_do'] ) : '';
+		// La maggior parte delle azioni arriva da form POST; "check_updates"
+		// arriva da un link GET, quindi leggiamo da $_REQUEST.
+		$action = isset( $_REQUEST['sg_do'] ) ? sanitize_key( $_REQUEST['sg_do'] ) : '';
 		$notice = '';
 
 		switch ( $action ) {
@@ -180,14 +182,24 @@ class SG_Admin {
 				$notice = '2fa_regen';
 				break;
 
+			case 'check_updates':
+				$this->guardian->updater->force_check();
+				$notice = 'update_checked';
+				break;
+
 			case 'clear_log':
 				$this->guardian->logger->clear();
 				$notice = 'log_cleared';
 				break;
 		}
 
-		$back = isset( $_POST['_back'] ) ? sanitize_text_field( wp_unslash( $_POST['_back'] ) ) : 'security-guardian';
-		wp_safe_redirect( admin_url( 'admin.php?page=' . $back . '&sg_notice=' . rawurlencode( $notice ) ) );
+		$back = isset( $_REQUEST['_back'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_back'] ) ) : 'security-guardian';
+		if ( 'plugins' === $back ) {
+			$redirect = admin_url( 'plugins.php?sg_notice=' . rawurlencode( $notice ) );
+		} else {
+			$redirect = admin_url( 'admin.php?page=' . $back . '&sg_notice=' . rawurlencode( $notice ) );
+		}
+		wp_safe_redirect( $redirect );
 		exit;
 	}
 
@@ -256,6 +268,7 @@ class SG_Admin {
 			'2fa_enabled'    => array( 'success', '2FA attivata. Salva subito i codici di backup qui sotto.' ),
 			'2fa_disabled'   => array( 'success', '2FA disattivata per il tuo account.' ),
 			'2fa_regen'      => array( 'success', 'Nuovi codici di backup generati. Salvali ora.' ),
+			'update_checked' => array( 'success', 'Controllo aggiornamenti eseguito. Se è disponibile una nuova versione, la vedrai nella pagina Plugin.' ),
 		);
 		if ( 0 === strpos( $n, 'error:' ) ) {
 			printf( '<div class="notice notice-error is-dismissible"><p>%s</p></div>', esc_html( substr( $n, 6 ) ) );
@@ -751,6 +764,34 @@ class SG_Admin {
 
 				<?php submit_button( 'Salva impostazioni' ); ?>
 			</form>
+
+			<hr>
+			<h2>Aggiornamenti</h2>
+			<?php $u = $this->guardian->updater->status(); ?>
+			<table class="form-table">
+				<tr>
+					<th>Versione installata</th>
+					<td><code><?php echo esc_html( $u['installed'] ); ?></code></td>
+				</tr>
+				<tr>
+					<th>Ultima versione disponibile</th>
+					<td>
+						<?php if ( $u['latest'] ) : ?>
+							<code><?php echo esc_html( $u['latest'] ); ?></code>
+							<?php if ( $u['update_available'] ) : ?>
+								<span class="sg-badge sg-badge-off" style="margin-left:8px">Aggiornamento disponibile</span>
+								&nbsp;<a href="<?php echo esc_url( admin_url( 'plugins.php' ) ); ?>">Vai alla pagina Plugin per aggiornare</a>
+							<?php else : ?>
+								<span class="sg-badge sg-badge-on" style="margin-left:8px">Sei aggiornato</span>
+							<?php endif; ?>
+						<?php else : ?>
+							<em>Nessuna release trovata su GitHub (ancora).</em>
+						<?php endif; ?>
+					</td>
+				</tr>
+			</table>
+			<?php $this->action_button( 'check_updates', 'Controlla aggiornamenti ora', array(), 'security-guardian-settings' ); ?>
+			<p class="description">Gli aggiornamenti arrivano dalle release del repository GitHub. Quando pubblichi una nuova release con versione più alta, WordPress mostrerà "Aggiornamento disponibile" nella pagina Plugin, come per qualsiasi altro plugin.</p>
 		</div>
 		<?php
 	}
