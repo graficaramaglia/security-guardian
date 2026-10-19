@@ -19,18 +19,32 @@ class SG_Scanner {
 	private $logger;
 	private $quarantine;
 
-	// Firme euristiche: pattern spesso presenti nel codice malevolo.
+	// Firme euristiche basate su COMBINAZIONI tipiche del malware.
+	// Volutamente NON usiamo indicatori singoli e deboli (base64_decode da
+	// solo, lunghe sequenze esadecimali, create_function da solo): compaiono
+	// di continuo nel codice legittimo — librerie di crittografia, polyfill,
+	// file minificati — e generano solo falsi positivi.
 	private $malware_signatures = array(
-		'/eval\s*\(\s*(base64_decode|gzinflate|str_rot13|gzuncompress)\s*\(/i' => 'Codice offuscato eseguito con eval()',
-		'/\b(gzinflate|gzuncompress|str_rot13)\s*\(\s*base64_decode\s*\(/i'      => 'Payload compresso e codificato',
-		'/preg_replace\s*\(\s*[\'"].*\/e[\'"]/i'                                 => 'preg_replace con modificatore /e (esecuzione codice)',
-		'/\$_(POST|GET|REQUEST|COOKIE)\s*\[[^\]]*\]\s*\(/'                        => 'Chiamata a funzione da input utente (possibile backdoor)',
-		'/assert\s*\(\s*\$_(POST|GET|REQUEST)/i'                                  => 'assert() su input utente',
-		'/\bcreate_function\s*\(/i'                                               => 'create_function (tecnica da webshell)',
-		'/base64_decode\s*\([\'"][A-Za-z0-9+\/=]{200,}/'                          => 'Lunga stringa base64 (payload nascosto)',
-		'/\\\\x[0-9a-f]{2}(\\\\x[0-9a-f]{2}){10,}/i'                              => 'Sequenza esadecimale lunga (offuscamento)',
-		'/FilesMan|c99shell|r57shell|WSO\s|b374k/i'                               => 'Firma di webshell nota',
-		'/move_uploaded_file\s*\([^)]*\.(php|phtml)/i'                            => 'Upload di file PHP',
+		// eval() di un payload decodificato al volo.
+		'/\beval\s*\(\s*(base64_decode|gzinflate|gzuncompress|gzdecode|str_rot13|rawurldecode|convert_uudecode)\s*\(/i' => 'eval() di un payload codificato',
+		// eval()/assert() direttamente su input utente.
+		'/\b(eval|assert)\s*\(\s*\$_(POST|GET|REQUEST|COOKIE|SERVER)\b/i' => 'Esecuzione di codice da input utente',
+		// assert() di un payload decodificato.
+		'/\bassert\s*\(\s*(base64_decode|gzinflate|str_rot13|gzuncompress)\s*\(/i' => 'assert() di un payload codificato',
+		// Catena di decodifica/decompressione annidata.
+		'/\b(gzinflate|gzuncompress|gzdecode|str_rot13)\s*\(\s*base64_decode\s*\(/i' => 'Payload compresso e codificato',
+		// Funzione il cui nome arriva da input utente: $_POST[...]().
+		'/\$_(POST|GET|REQUEST|COOKIE)\s*\[[^\]]{1,40}\]\s*\(/' => 'Chiamata a funzione da input utente (possibile backdoor)',
+		// preg_replace con modificatore /e (esecuzione di codice).
+		'/preg_replace\s*\(\s*[\'"][^\'"]{0,300}\/e[imsxuADSUX]*[\'"]/i' => 'preg_replace con modificatore /e',
+		// create_function solo se costruita da payload o input utente.
+		'/\bcreate_function\s*\([^)]{0,200}(base64_decode|gzinflate|\$_(POST|GET|REQUEST|COOKIE))/i' => 'create_function con payload o input utente',
+		// Nomi di webshell note.
+		'/\b(c99shell|r57shell|b374k|wsoshell|filesman\b.{0,40}\bshell)\b/i' => 'Firma di webshell nota',
+		// Caricamento di un file PHP via upload.
+		'/\bmove_uploaded_file\s*\([^)]*\.(php|phtml|php[0-9])\b/i' => 'Upload di un file PHP',
+		// Scrittura di codice PHP in un file (dropper).
+		'/\bf(write|put_contents)\s*\([^)]*,\s*[\'"][^\'"]{0,20}<\?php/i' => 'Scrittura di codice PHP in un file (possibile dropper)',
 	);
 
 	public function __construct( $logger, $quarantine ) {
@@ -199,6 +213,9 @@ class SG_Scanner {
 			return $threats;
 		}
 
+		$self_dir = wp_normalize_path( SG_PATH );
+		$uploads  = wp_upload_dir();
+
 		$iterator = new RecursiveIteratorIterator(
 			new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS )
 		);
@@ -210,13 +227,24 @@ class SG_Scanner {
 			$path = $fileinfo->getPathname();
 			$ext  = strtolower( $fileinfo->getExtension() );
 
-			// Un .php dentro uploads è quasi sempre un problema.
-			$uploads = wp_upload_dir();
+			// Non analizziamo la cartella del plugin stesso: le sue firme
+			// contengono le parole chiave del malware e si auto-segnalerebbe.
+			if ( 0 === strpos( wp_normalize_path( $path ), $self_dir ) ) {
+				continue;
+			}
+
+			// Un .php dentro uploads merita attenzione, ma ignoriamo i file
+			// "guardiano" innocui (index.php vuoti, blocchi ABSPATH) che molti
+			// plugin legittimi inseriscono lì.
 			if ( in_array( $ext, array( 'php', 'phtml', 'php5', 'phar' ), true )
 				&& 0 === strpos( $path, $uploads['basedir'] ) ) {
+				$content = $fileinfo->getSize() < 1024 * 1024 ? file_get_contents( $path ) : '';
+				if ( '' !== $content && $this->is_benign_php( $content ) ) {
+					continue;
+				}
 				$threats[] = array(
 					'file'   => $path,
-					'reason' => 'File PHP nella cartella uploads (non dovrebbe esistere)',
+					'reason' => 'File PHP nella cartella uploads (da verificare)',
 					'type'   => 'uploads_php',
 				);
 				continue;
@@ -248,6 +276,33 @@ class SG_Scanner {
 		}
 
 		return $threats;
+	}
+
+	/**
+	 * Vero se il file PHP è un "guardiano" innocuo: vuoto, solo commenti,
+	 * oppure il classico blocco di protezione (exit / die / controllo ABSPATH).
+	 */
+	private function is_benign_php( $content ) {
+		// Rimuove i commenti.
+		$c = preg_replace( '!/\*.*?\*/!s', '', $content );
+		$c = preg_replace( '@//.*$@m', '', $c );
+		$c = preg_replace( '/#.*$/m', '', $c );
+		// Rimuove i tag PHP.
+		$c = str_replace( array( '<?php', '<?=', '<?', '?>' ), '', $c );
+		$c = trim( $c );
+
+		if ( '' === $c ) {
+			return true;
+		}
+		// Solo exit; / die;
+		if ( preg_match( '/^(exit|die)\s*(\([^)]*\))?\s*;?$/i', $c ) ) {
+			return true;
+		}
+		// if ( ! defined('ABSPATH') ) exit;  (eventualmente con graffe)
+		if ( preg_match( '/^if\s*\(\s*!?\s*defined\s*\(\s*[\'"]ABSPATH[\'"]\s*\)\s*\)\s*\{?\s*(exit|die|return)\s*(\([^)]*\))?\s*;?\s*\}?$/i', $c ) ) {
+			return true;
+		}
+		return false;
 	}
 
 	/**
