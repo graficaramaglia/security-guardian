@@ -150,6 +150,11 @@ class SG_Quarantine {
 
 	/**
 	 * Impedisce la quarantena di file sensibili.
+	 *
+	 * NB: non blocchiamo in blocco wp-admin/wp-includes, perché lì possono
+	 * annidarsi i file estranei (core_unknown) che vogliamo poter isolare.
+	 * I file legittimi del core non vengono mai proposti per la quarantena
+	 * (per quelli c'è il ripristino dall'originale ufficiale).
 	 */
 	private function is_protected( $file ) {
 		$file = wp_normalize_path( $file );
@@ -157,17 +162,12 @@ class SG_Quarantine {
 		if ( 0 === strpos( $file, wp_normalize_path( SG_PATH ) ) ) {
 			return true;
 		}
-		// File del core nella radice e nelle cartelle di sistema.
-		$protected_roots = array(
-			wp_normalize_path( ABSPATH . 'wp-admin' ),
-			wp_normalize_path( ABSPATH . 'wp-includes' ),
-		);
-		foreach ( $protected_roots as $root ) {
-			if ( 0 === strpos( $file, $root ) ) {
-				return true;
-			}
-		}
+		// Il file di configurazione non si tocca mai.
 		if ( basename( $file ) === 'wp-config.php' ) {
+			return true;
+		}
+		// Il file deve stare dentro l'installazione WordPress.
+		if ( 0 !== strpos( $file, wp_normalize_path( ABSPATH ) ) ) {
 			return true;
 		}
 		return false;

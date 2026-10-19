@@ -102,6 +102,21 @@ class SG_Admin {
 				$notice = is_wp_error( $res ) ? 'error:' . $res->get_error_message() : 'q_deleted';
 				break;
 
+			case 'bulk_quarantine':
+				$files = isset( $_POST['files'] ) ? (array) wp_unslash( $_POST['files'] ) : array();
+				$done  = 0;
+				$fail  = 0;
+				foreach ( $files as $file ) {
+					$res = $this->guardian->quarantine->quarantine_file( $file );
+					if ( is_wp_error( $res ) ) {
+						$fail++;
+					} else {
+						$done++;
+					}
+				}
+				$notice = 'bulk:' . $done . ':' . $fail;
+				break;
+
 			case 'db_clean':
 				$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 				$id     = isset( $_POST['id'] ) ? wp_unslash( $_POST['id'] ) : '';
@@ -222,6 +237,16 @@ class SG_Admin {
 		);
 		if ( 0 === strpos( $n, 'error:' ) ) {
 			printf( '<div class="notice notice-error is-dismissible"><p>%s</p></div>', esc_html( substr( $n, 6 ) ) );
+		} elseif ( 0 === strpos( $n, 'bulk:' ) ) {
+			$parts = explode( ':', $n );
+			$done  = isset( $parts[1] ) ? intval( $parts[1] ) : 0;
+			$fail  = isset( $parts[2] ) ? intval( $parts[2] ) : 0;
+			$type  = $fail > 0 ? 'warning' : 'success';
+			$msg   = sprintf( '%d file messi in quarantena.', $done );
+			if ( $fail > 0 ) {
+				$msg .= sprintf( ' %d non è stato possibile spostarli (protetti o non accessibili).', $fail );
+			}
+			printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $msg ) );
 		} elseif ( isset( $map[ $n ] ) ) {
 			printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $map[ $n ][0] ), esc_html( $map[ $n ][1] ) );
 		}
@@ -341,11 +366,19 @@ class SG_Admin {
 			<?php if ( ! empty( $last['threats'] ) ) : ?>
 				<h2>Risultati (<?php echo count( $last['threats'] ); ?>)</h2>
 				<?php $this->crit_legend(); ?>
-				<table class="widefat striped">
-					<thead><tr><th>Criticità</th><th>File</th><th>Motivo e come proteggersi</th><th>Azione</th></tr></thead>
+				<table class="widefat striped sg-results">
+					<thead><tr>
+						<td class="check-column"><input type="checkbox" id="sg-select-all" title="Seleziona tutti"></td>
+						<th>Criticità</th><th>File</th><th>Motivo e come proteggersi</th><th>Azione</th>
+					</tr></thead>
 					<tbody>
 					<?php foreach ( $last['threats'] as $t ) : ?>
 						<tr>
+							<td class="check-column">
+								<?php if ( $this->is_quarantinable( $t ) ) : ?>
+									<input type="checkbox" class="sg-pick" value="<?php echo esc_attr( $this->quar_path( $t ) ); ?>">
+								<?php endif; ?>
+							</td>
 							<td><?php $this->crit_badge( $t['severity'] ?? 'media' ); ?></td>
 							<td><code><?php echo esc_html( $t['file'] ); ?></code></td>
 							<td>
@@ -357,6 +390,20 @@ class SG_Admin {
 					<?php endforeach; ?>
 					</tbody>
 				</table>
+
+				<p class="sg-bulk-bar">
+					<label><input type="checkbox" id="sg-select-all-2"> Seleziona tutti</label>
+					<button type="button" class="button button-primary" id="sg-bulk-quar">Metti in quarantena i selezionati (<span id="sg-pick-count">0</span>)</button>
+				</p>
+
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="sg-bulk-form" style="display:none">
+					<?php wp_nonce_field( 'sg_action' ); ?>
+					<input type="hidden" name="action" value="sg_action">
+					<input type="hidden" name="sg_do" value="bulk_quarantine">
+					<input type="hidden" name="_back" value="security-guardian-scanner">
+					<span id="sg-bulk-fields"></span>
+				</form>
+
 				<p class="description">Suggerimento: prima di eliminare, metti in quarantena. Se il sito continua a funzionare, elimina definitivamente dalla pagina Quarantena.</p>
 			<?php elseif ( ! empty( $last['scanned_at'] ) ) : ?>
 				<div class="notice notice-success"><p>Nessuna minaccia trovata nell'ultima scansione del <?php echo esc_html( $last['scanned_at'] ); ?>.</p></div>
@@ -365,14 +412,22 @@ class SG_Admin {
 		<?php
 	}
 
+	/** Il tipo di elemento può essere messo in quarantena? */
+	private function is_quarantinable( $t ) {
+		return in_array( $t['type'], array( 'heuristic', 'uploads_php', 'core_unknown' ), true );
+	}
+
+	/** Percorso assoluto da usare per la quarantena di un elemento. */
+	private function quar_path( $t ) {
+		return ( 'core_unknown' === $t['type'] ) ? ABSPATH . $t['file'] : $t['file'];
+	}
+
 	private function threat_action( $t ) {
 		$back = 'security-guardian-scanner';
 		if ( 'core_modified' === $t['type'] ) {
 			$this->action_button( 'restore_core', 'Ripristina originale', array( 'file' => $t['file'] ), $back, 'button-primary' );
-		} elseif ( in_array( $t['type'], array( 'heuristic', 'uploads_php', 'core_unknown' ), true ) ) {
-			// Per i file del core estranei usiamo il percorso assoluto.
-			$file = ( 'core_unknown' === $t['type'] ) ? ABSPATH . $t['file'] : $t['file'];
-			$this->action_button( 'quarantine', 'Metti in quarantena', array( 'file' => $file ), $back );
+		} elseif ( $this->is_quarantinable( $t ) ) {
+			$this->action_button( 'quarantine', 'Metti in quarantena', array( 'file' => $this->quar_path( $t ) ), $back );
 		} else {
 			echo '—';
 		}

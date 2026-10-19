@@ -31,3 +31,6 @@
 .sg-detail { color: #50575e; font-size: 12px; line-height: 1.5; display: block; margin-top: 3px; }
 .sg-legend { color: #50575e; font-size: 12px; margin: 6px 0 12px; }
 .sg-legend .sg-crit { margin-right: 4px; }
+.sg-results .check-column { width: 2.2em; text-align: center; vertical-align: middle; }
+.sg-bulk-bar { display: flex; align-items: center; gap: 16px; margin: 12px 0; padding: 10px 14px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 6px; }
+.sg-bulk-bar label { font-weight: 600; }

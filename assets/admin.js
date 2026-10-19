@@ -28,4 +28,40 @@ jQuery(function ($) {
 	$('#sg-db-scan-btn').on('click', function () {
 		runScan($(this), $('#sg-db-scan-status'), 'sg_run_db_scan');
 	});
+
+	// --- Selezione multipla per la quarantena ---
+	function updateCount() {
+		var n = $('.sg-pick:checked').length;
+		$('#sg-pick-count').text(n);
+	}
+
+	$('#sg-select-all, #sg-select-all-2').on('change', function () {
+		var checked = this.checked;
+		$('.sg-pick').prop('checked', checked);
+		$('#sg-select-all, #sg-select-all-2').prop('checked', checked);
+		updateCount();
+	});
+
+	$(document).on('change', '.sg-pick', function () {
+		var total = $('.sg-pick').length;
+		var sel = $('.sg-pick:checked').length;
+		$('#sg-select-all, #sg-select-all-2').prop('checked', total > 0 && sel === total);
+		updateCount();
+	});
+
+	$('#sg-bulk-quar').on('click', function () {
+		var files = $('.sg-pick:checked').map(function () { return $(this).val(); }).get();
+		if (!files.length) {
+			alert('Seleziona almeno un file da mettere in quarantena.');
+			return;
+		}
+		if (!confirm('Mettere in quarantena ' + files.length + ' file selezionati? L\'operazione è reversibile dalla pagina Quarantena.')) {
+			return;
+		}
+		var container = $('#sg-bulk-fields').empty();
+		files.forEach(function (f) {
+			$('<input>', { type: 'hidden', name: 'files[]' }).val(f).appendTo(container);
+		});
+		$('#sg-bulk-form').trigger('submit');
+	});
 });
