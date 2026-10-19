@@ -298,6 +298,29 @@ class SG_Admin {
 		);
 	}
 
+	/**
+	 * Stampa un'etichetta colorata per il livello di criticità.
+	 */
+	private function crit_badge( $severity ) {
+		$map = array(
+			'alta'  => array( 'Alta', 'sg-crit-alta' ),
+			'media' => array( 'Media', 'sg-crit-media' ),
+			'bassa' => array( 'Bassa', 'sg-crit-bassa' ),
+		);
+		$s = isset( $map[ $severity ] ) ? $map[ $severity ] : $map['media'];
+		printf( '<span class="sg-crit %s">%s</span>', esc_attr( $s[1] ), esc_html( $s[0] ) );
+	}
+
+	private function crit_legend() {
+		?>
+		<p class="sg-legend">
+			<span class="sg-crit sg-crit-alta">Alta</span> intervieni subito &nbsp;
+			<span class="sg-crit sg-crit-media">Media</span> da verificare &nbsp;
+			<span class="sg-crit sg-crit-bassa">Bassa</span> informativo
+		</p>
+		<?php
+	}
+
 	public function page_scanner() {
 		$last = $this->guardian->scanner->get_last_scan();
 		?>
@@ -317,13 +340,18 @@ class SG_Admin {
 
 			<?php if ( ! empty( $last['threats'] ) ) : ?>
 				<h2>Risultati (<?php echo count( $last['threats'] ); ?>)</h2>
+				<?php $this->crit_legend(); ?>
 				<table class="widefat striped">
-					<thead><tr><th>File</th><th>Motivo</th><th>Azione</th></tr></thead>
+					<thead><tr><th>Criticità</th><th>File</th><th>Motivo e come proteggersi</th><th>Azione</th></tr></thead>
 					<tbody>
 					<?php foreach ( $last['threats'] as $t ) : ?>
 						<tr>
+							<td><?php $this->crit_badge( $t['severity'] ?? 'media' ); ?></td>
 							<td><code><?php echo esc_html( $t['file'] ); ?></code></td>
-							<td><?php echo esc_html( $t['reason'] ); ?></td>
+							<td>
+								<strong><?php echo esc_html( $t['reason'] ); ?></strong>
+								<?php if ( ! empty( $t['detail'] ) ) : ?><br><span class="sg-detail"><?php echo esc_html( $t['detail'] ); ?></span><?php endif; ?>
+							</td>
 							<td><?php $this->threat_action( $t ); ?></td>
 						</tr>
 					<?php endforeach; ?>
@@ -380,13 +408,18 @@ class SG_Admin {
 
 			<?php if ( ! empty( $last['findings'] ) ) : ?>
 				<h2>Elementi sospetti (<?php echo count( $last['findings'] ); ?>)</h2>
+				<?php $this->crit_legend(); ?>
 				<table class="widefat striped">
-					<thead><tr><th>Posizione</th><th>Motivo</th><th>Estratto</th><th>Azione</th></tr></thead>
+					<thead><tr><th>Criticità</th><th>Posizione</th><th>Motivo e come proteggersi</th><th>Estratto</th><th>Azione</th></tr></thead>
 					<tbody>
 					<?php foreach ( $last['findings'] as $f ) : ?>
 						<tr>
+							<td><?php $this->crit_badge( $f['severity'] ?? 'media' ); ?></td>
 							<td><?php echo esc_html( $f['label'] ); ?></td>
-							<td><?php echo esc_html( $f['reason'] ); ?></td>
+							<td>
+								<strong><?php echo esc_html( $f['reason'] ); ?></strong>
+								<?php if ( ! empty( $f['detail'] ) ) : ?><br><span class="sg-detail"><?php echo esc_html( $f['detail'] ); ?></span><?php endif; ?>
+							</td>
 							<td><code style="font-size:11px"><?php echo esc_html( $f['snippet'] ); ?></code></td>
 							<td><?php $this->action_button( 'db_clean', 'Pulisci', array( 'source' => $f['source'], 'id' => $f['id'] ), 'security-guardian-database' ); ?></td>
 						</tr>

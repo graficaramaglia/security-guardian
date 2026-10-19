@@ -327,6 +327,17 @@ class SG_Scanner {
 		$threats = array_merge( $threats, $this->scan_directory( WP_CONTENT_DIR . '/plugins' ) );
 		$threats = array_merge( $threats, $this->scan_directory( wp_upload_dir()['basedir'] ) );
 
+		// Aggiunge a ogni elemento la criticità e i consigli di protezione.
+		foreach ( $threats as &$t ) {
+			$meta         = $this->classify( $t['type'], $t['reason'] );
+			$t['severity'] = $meta['severity'];
+			$t['detail']   = $meta['detail'];
+		}
+		unset( $t );
+
+		// Ordina per criticità (alta prima).
+		usort( $threats, array( $this, 'sort_by_severity' ) );
+
 		$results = array(
 			'core'      => is_wp_error( $core ) ? array() : $core,
 			'core_error'=> is_wp_error( $core ) ? $core->get_error_message() : '',
@@ -347,5 +358,61 @@ class SG_Scanner {
 
 	public function get_last_scan() {
 		return get_option( 'sg_last_scan', array() );
+	}
+
+	/**
+	 * Assegna criticità (alta/media/bassa) e consigli di protezione
+	 * a un elemento trovato dalla scansione dei file.
+	 */
+	public function classify( $type, $reason ) {
+		// Elementi del core.
+		if ( 'core_modified' === $type ) {
+			return array(
+				'severity' => 'alta',
+				'detail'   => 'Un file del core di WordPress è diverso dall\'originale ufficiale. Se non l\'hai modificato tu, è un segnale forte di manomissione. Usa "Ripristina originale", poi cambia le password (admin, FTP, database) e rigenera le chiavi di sicurezza in wp-config.php.',
+			);
+		}
+		if ( 'core_unknown' === $type ) {
+			return array(
+				'severity' => 'alta',
+				'detail'   => 'File estraneo dentro wp-admin o wp-includes, dove normalmente non si aggiunge nulla: è la posizione tipica delle backdoor. Mettilo in quarantena ed esamina il sito.',
+			);
+		}
+		if ( 'uploads_php' === $type ) {
+			return array(
+				'severity' => 'media',
+				'detail'   => 'Un file PHP nella cartella uploads di solito non dovrebbe esistere. A volte è legittimo: controlla dal percorso a quale plugin appartiene. Se non lo riconosci, mettilo in quarantena.',
+			);
+		}
+
+		// Elementi euristici: criticità in base al motivo.
+		$alta = array(
+			'eval() di un payload codificato',
+			'Esecuzione di codice da input utente',
+			'assert() di un payload codificato',
+			'Payload compresso e codificato',
+			'Chiamata a funzione da input utente (possibile backdoor)',
+			'create_function con payload o input utente',
+			'Firma di webshell nota',
+		);
+		if ( in_array( $reason, $alta, true ) ) {
+			return array(
+				'severity' => 'alta',
+				'detail'   => 'Questo file contiene uno schema tipico delle backdoor (codice nascosto che esegue comandi inviati dall\'esterno). Se non sai spiegarne la presenza, mettilo subito in quarantena, poi cambia tutte le password e controlla gli utenti amministratori.',
+			);
+		}
+
+		// Restanti euristici: criticità media.
+		return array(
+			'severity' => 'media',
+			'detail'   => 'Il file usa una tecnica che il malware sfrutta spesso, ma che in rari casi può essere legittima. Verifica a quale plugin o tema appartiene; nel dubbio, mettilo in quarantena (è reversibile).',
+		);
+	}
+
+	public function sort_by_severity( $a, $b ) {
+		$rank = array( 'alta' => 0, 'media' => 1, 'bassa' => 2 );
+		$ra   = isset( $rank[ $a['severity'] ] ) ? $rank[ $a['severity'] ] : 3;
+		$rb   = isset( $rank[ $b['severity'] ] ) ? $rank[ $b['severity'] ] : 3;
+		return $ra <=> $rb;
 	}
 }

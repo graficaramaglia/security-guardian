@@ -24,3 +24,10 @@
 .sg-codes { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0; padding: 0; }
 .sg-codes li code { font-size: 16px; background: #fff; padding: 8px 12px; border-radius: 6px; border: 1px solid #dcdcde; }
 .sg-2fa-login input { width: 100%; }
+.sg-crit { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+.sg-crit-alta { background: #fcebec; color: #b32d2e; border: 1px solid #f0a0a3; }
+.sg-crit-media { background: #fff4e5; color: #8a5300; border: 1px solid #f0c48a; }
+.sg-crit-bassa { background: #eaf5ea; color: #1e7e34; border: 1px solid #a8d8ad; }
+.sg-detail { color: #50575e; font-size: 12px; line-height: 1.5; display: block; margin-top: 3px; }
+.sg-legend { color: #50575e; font-size: 12px; margin: 6px 0 12px; }
+.sg-legend .sg-crit { margin-right: 4px; }

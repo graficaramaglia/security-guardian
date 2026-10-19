@@ -116,14 +116,14 @@ class SG_Guardian {
 		if ( ! empty( $results['threats'] ) ) {
 			$body .= "FILE:\n";
 			foreach ( $results['threats'] as $t ) {
-				$body .= sprintf( "- [%s] %s\n", $t['type'], $t['file'] );
+				$body .= sprintf( "- [criticità %s] %s — %s\n", strtoupper( $t['severity'] ?? 'media' ), $t['reason'], $t['file'] );
 			}
 			$body .= "\n";
 		}
 		if ( ! empty( $db ) ) {
 			$body .= "DATABASE:\n";
 			foreach ( $db as $d ) {
-				$body .= sprintf( "- [%s] %s — %s\n", $d['source'], $d['label'], $d['reason'] );
+				$body .= sprintf( "- [criticità %s] %s — %s\n", strtoupper( $d['severity'] ?? 'media' ), $d['label'], $d['reason'] );
 			}
 			$body .= "\n";
 		}

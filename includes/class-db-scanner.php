@@ -53,6 +53,21 @@ class SG_DB_Scanner {
 			$this->scan_comments()
 		);
 
+		// Aggiunge criticità e consigli di protezione a ogni elemento.
+		foreach ( $findings as &$f ) {
+			$meta         = $this->classify( $f['reason'] );
+			$f['severity'] = $meta['severity'];
+			$f['detail']   = $meta['detail'];
+		}
+		unset( $f );
+
+		$rank = array( 'alta' => 0, 'media' => 1, 'bassa' => 2 );
+		usort( $findings, function ( $a, $b ) use ( $rank ) {
+			$ra = isset( $rank[ $a['severity'] ] ) ? $rank[ $a['severity'] ] : 3;
+			$rb = isset( $rank[ $b['severity'] ] ) ? $rank[ $b['severity'] ] : 3;
+			return $ra <=> $rb;
+		} );
+
 		update_option( 'sg_last_db_scan', array(
 			'findings'   => $findings,
 			'scanned_at' => current_time( 'mysql' ),
@@ -153,6 +168,32 @@ class SG_DB_Scanner {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Criticità e consigli per un elemento sospetto del database.
+	 */
+	public function classify( $reason ) {
+		$alta = array(
+			'Chiamata eval()',
+			'base64_decode()',
+			'document.write()',
+			'String.fromCharCode() (offuscamento)',
+			'Redirect JavaScript',
+			'atob() (decodifica base64 JS)',
+		);
+		if ( in_array( $reason, $alta, true ) ) {
+			return array(
+				'severity' => 'alta',
+				'detail'   => 'Nel database c\'è codice JavaScript offuscato o un redirect: segno tipico di un sito violato (spam, truffe, reindirizzamenti verso siti esterni). Usa "Pulisci" (rimuove solo il codice pericoloso e salva l\'originale), poi cambia le password e aggiorna temi e plugin.',
+			);
+		}
+		// <script> / <iframe> / sequenze esadecimali: spesso iniezioni,
+		// ma a volte contenuti legittimi (embed, widget).
+		return array(
+			'severity' => 'media',
+			'detail'   => 'Contenuto con script o iframe: potrebbe essere un\'iniezione, oppure un embed legittimo che hai inserito tu (es. un video o un widget). Se riconosci il contenuto, ignora; altrimenti usa "Pulisci" (è reversibile).',
+		);
 	}
 
 	private function snippet( $content ) {
