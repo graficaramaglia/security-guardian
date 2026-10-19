@@ -124,6 +124,28 @@ class SG_Admin {
 				$notice = is_wp_error( $res ) ? 'error:' . $res->get_error_message() : 'db_cleaned';
 				break;
 
+			case 'bulk_clean':
+				$items = isset( $_POST['items'] ) ? (array) wp_unslash( $_POST['items'] ) : array();
+				$done  = 0;
+				$fail  = 0;
+				foreach ( $items as $item ) {
+					$parts  = explode( '|', $item, 2 );
+					$source = isset( $parts[0] ) ? sanitize_key( $parts[0] ) : '';
+					$id     = isset( $parts[1] ) ? $parts[1] : '';
+					if ( '' === $source || '' === $id ) {
+						$fail++;
+						continue;
+					}
+					$res = $this->guardian->db_scanner->clean( $source, $id );
+					if ( is_wp_error( $res ) ) {
+						$fail++;
+					} else {
+						$done++;
+					}
+				}
+				$notice = 'bulkclean:' . $done . ':' . $fail;
+				break;
+
 			case 'db_restore':
 				$key = isset( $_POST['key'] ) ? sanitize_text_field( wp_unslash( $_POST['key'] ) ) : '';
 				$res = $this->guardian->db_scanner->restore( $key );
@@ -245,6 +267,16 @@ class SG_Admin {
 			$msg   = sprintf( '%d file messi in quarantena.', $done );
 			if ( $fail > 0 ) {
 				$msg .= sprintf( ' %d non è stato possibile spostarli (protetti o non accessibili).', $fail );
+			}
+			printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $msg ) );
+		} elseif ( 0 === strpos( $n, 'bulkclean:' ) ) {
+			$parts = explode( ':', $n );
+			$done  = isset( $parts[1] ) ? intval( $parts[1] ) : 0;
+			$fail  = isset( $parts[2] ) ? intval( $parts[2] ) : 0;
+			$type  = $fail > 0 ? 'warning' : 'success';
+			$msg   = sprintf( '%d elementi del database puliti (originali salvati in quarantena DB).', $done );
+			if ( $fail > 0 ) {
+				$msg .= sprintf( ' %d non puliti.', $fail );
 			}
 			printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $msg ) );
 		} elseif ( isset( $map[ $n ] ) ) {
@@ -464,11 +496,17 @@ class SG_Admin {
 			<?php if ( ! empty( $last['findings'] ) ) : ?>
 				<h2>Elementi sospetti (<?php echo count( $last['findings'] ); ?>)</h2>
 				<?php $this->crit_legend(); ?>
-				<table class="widefat striped">
-					<thead><tr><th>Criticità</th><th>Posizione</th><th>Motivo e come proteggersi</th><th>Estratto</th><th>Azione</th></tr></thead>
+				<table class="widefat striped sg-results">
+					<thead><tr>
+						<td class="check-column"><input type="checkbox" id="sg-select-all-db" title="Seleziona tutti"></td>
+						<th>Criticità</th><th>Posizione</th><th>Motivo e come proteggersi</th><th>Estratto</th><th>Azione</th>
+					</tr></thead>
 					<tbody>
 					<?php foreach ( $last['findings'] as $f ) : ?>
 						<tr>
+							<td class="check-column">
+								<input type="checkbox" class="sg-pick-db" value="<?php echo esc_attr( $f['source'] . '|' . $f['id'] ); ?>">
+							</td>
 							<td><?php $this->crit_badge( $f['severity'] ?? 'media' ); ?></td>
 							<td><?php echo esc_html( $f['label'] ); ?></td>
 							<td>
@@ -481,7 +519,21 @@ class SG_Admin {
 					<?php endforeach; ?>
 					</tbody>
 				</table>
-				<p class="description">Attenzione: se un articolo contiene uno script legittimo (es. un embed), la pulizia lo rimuove. Puoi sempre ripristinarlo dalla tabella qui sotto.</p>
+
+				<p class="sg-bulk-bar">
+					<label><input type="checkbox" id="sg-select-all-db-2"> Seleziona tutti</label>
+					<button type="button" class="button button-primary" id="sg-bulk-clean">Pulisci i selezionati (<span id="sg-pick-count-db">0</span>)</button>
+				</p>
+
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="sg-bulk-form-db" style="display:none">
+					<?php wp_nonce_field( 'sg_action' ); ?>
+					<input type="hidden" name="action" value="sg_action">
+					<input type="hidden" name="sg_do" value="bulk_clean">
+					<input type="hidden" name="_back" value="security-guardian-database">
+					<span id="sg-bulk-fields-db"></span>
+				</form>
+
+				<p class="description">Attenzione: se un articolo contiene uno script legittimo (es. un embed), la pulizia lo rimuove. Puoi sempre ripristinarlo dalla tabella della quarantena del database, qui sotto.</p>
 			<?php elseif ( ! empty( $last['scanned_at'] ) ) : ?>
 				<div class="notice notice-success"><p>Nessun elemento sospetto nel database (scansione del <?php echo esc_html( $last['scanned_at'] ); ?>).</p></div>
 			<?php endif; ?>

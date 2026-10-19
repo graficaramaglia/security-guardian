@@ -29,39 +29,66 @@ jQuery(function ($) {
 		runScan($(this), $('#sg-db-scan-status'), 'sg_run_db_scan');
 	});
 
-	// --- Selezione multipla per la quarantena ---
-	function updateCount() {
-		var n = $('.sg-pick:checked').length;
-		$('#sg-pick-count').text(n);
+	// --- Selezione multipla e azione in blocco (riutilizzabile) ---
+	// opts: pick (classe checkbox), all (selettore "seleziona tutti"),
+	//       count, button, form, fields (contenitore), field (name[]),
+	//       confirm (messaggio), empty (messaggio se nulla selezionato).
+	function setupBulk(opts) {
+		function update() {
+			var total = $(opts.pick).length;
+			var sel = $(opts.pick + ':checked').length;
+			$(opts.count).text(sel);
+			$(opts.all).prop('checked', total > 0 && sel === total);
+		}
+
+		$(opts.all).on('change', function () {
+			$(opts.pick).prop('checked', this.checked);
+			update();
+		});
+		$(document).on('change', opts.pick, update);
+
+		$(opts.button).on('click', function () {
+			var vals = $(opts.pick + ':checked').map(function () { return $(this).val(); }).get();
+			if (!vals.length) {
+				alert(opts.empty);
+				return;
+			}
+			if (!confirm(opts.confirm.replace('%d', vals.length))) {
+				return;
+			}
+			var container = $(opts.fields).empty();
+			vals.forEach(function (v) {
+				$('<input>', { type: 'hidden', name: opts.field }).val(v).appendTo(container);
+			});
+			$(opts.form).trigger('submit');
+		});
+
+		update();
 	}
 
-	$('#sg-select-all, #sg-select-all-2').on('change', function () {
-		var checked = this.checked;
-		$('.sg-pick').prop('checked', checked);
-		$('#sg-select-all, #sg-select-all-2').prop('checked', checked);
-		updateCount();
+	// Quarantena file (pagina Scansione)
+	setupBulk({
+		pick: '.sg-pick',
+		all: '#sg-select-all, #sg-select-all-2',
+		count: '#sg-pick-count',
+		button: '#sg-bulk-quar',
+		form: '#sg-bulk-form',
+		fields: '#sg-bulk-fields',
+		field: 'files[]',
+		confirm: 'Mettere in quarantena %d file selezionati? L\'operazione è reversibile dalla pagina Quarantena.',
+		empty: 'Seleziona almeno un file da mettere in quarantena.'
 	});
 
-	$(document).on('change', '.sg-pick', function () {
-		var total = $('.sg-pick').length;
-		var sel = $('.sg-pick:checked').length;
-		$('#sg-select-all, #sg-select-all-2').prop('checked', total > 0 && sel === total);
-		updateCount();
-	});
-
-	$('#sg-bulk-quar').on('click', function () {
-		var files = $('.sg-pick:checked').map(function () { return $(this).val(); }).get();
-		if (!files.length) {
-			alert('Seleziona almeno un file da mettere in quarantena.');
-			return;
-		}
-		if (!confirm('Mettere in quarantena ' + files.length + ' file selezionati? L\'operazione è reversibile dalla pagina Quarantena.')) {
-			return;
-		}
-		var container = $('#sg-bulk-fields').empty();
-		files.forEach(function (f) {
-			$('<input>', { type: 'hidden', name: 'files[]' }).val(f).appendTo(container);
-		});
-		$('#sg-bulk-form').trigger('submit');
+	// Pulizia database (pagina Database)
+	setupBulk({
+		pick: '.sg-pick-db',
+		all: '#sg-select-all-db, #sg-select-all-db-2',
+		count: '#sg-pick-count-db',
+		button: '#sg-bulk-clean',
+		form: '#sg-bulk-form-db',
+		fields: '#sg-bulk-fields-db',
+		field: 'items[]',
+		confirm: 'Pulire %d elementi selezionati? Gli originali vengono salvati nella quarantena del database e sono ripristinabili.',
+		empty: 'Seleziona almeno un elemento da pulire.'
 	});
 });
