@@ -101,6 +101,14 @@ class SG_Scanner {
 			if ( 0 === strpos( $file, 'wp-content/' ) ) {
 				continue;
 			}
+			// File del core "innocui" che differiscono di continuo senza che
+			// ci sia un attacco: pagine statiche (readme/licenza), file di
+			// esempio mai eseguiti e file legati alla lingua. Su installazioni
+			// non inglesi questi divergono sempre dall'originale ufficiale, e
+			// non contengono codice attivo del sito.
+			if ( $this->is_ignorable_core_file( $file ) ) {
+				continue;
+			}
 			$path = ABSPATH . $file;
 			if ( ! file_exists( $path ) ) {
 				$result['missing'][] = $file;
@@ -126,6 +134,29 @@ class SG_Scanner {
 		);
 
 		return $result;
+	}
+
+	/**
+	 * File del core da ignorare nel confronto checksum: non contengono
+	 * codice eseguito dal sito e differiscono spesso in modo innocuo
+	 * (installazioni localizzate, hosting che rimarca il readme, ecc.).
+	 */
+	private function is_ignorable_core_file( $rel ) {
+		$rel     = strtolower( str_replace( '\\', '/', $rel ) );
+		$ignore  = array(
+			'readme.html',
+			'license.txt',
+			'wp-config-sample.php',
+			'wp-includes/version.php',
+		);
+		if ( in_array( $rel, $ignore, true ) ) {
+			return true;
+		}
+		// Licenze tradotte: license.it_IT.txt, readme-*.html, ecc.
+		if ( preg_match( '#^(license|readme)[.\-][a-z0-9_\-]+\.(txt|html)$#', $rel ) ) {
+			return true;
+		}
+		return false;
 	}
 
 	private function find_unknown_core_files( $checksums ) {

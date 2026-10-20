@@ -409,11 +409,20 @@ class SG_Admin {
 			<?php endif; ?>
 
 			<?php if ( ! empty( $last['threats'] ) ) : ?>
+				<?php
+				$has_quar = false;
+				foreach ( $last['threats'] as $t ) {
+					if ( $this->is_quarantinable( $t ) ) {
+						$has_quar = true;
+						break;
+					}
+				}
+				?>
 				<h2>Risultati (<?php echo count( $last['threats'] ); ?>)</h2>
 				<?php $this->crit_legend(); ?>
 				<table class="widefat striped sg-results">
 					<thead><tr>
-						<td class="check-column"><input type="checkbox" id="sg-select-all" title="Seleziona tutti"></td>
+						<td class="check-column"><?php if ( $has_quar ) : ?><input type="checkbox" id="sg-select-all" title="Seleziona tutti"><?php endif; ?></td>
 						<th>Criticità</th><th>File</th><th>Motivo e come proteggersi</th><th>Azione</th>
 					</tr></thead>
 					<tbody>
@@ -436,6 +445,7 @@ class SG_Admin {
 					</tbody>
 				</table>
 
+				<?php if ( $has_quar ) : ?>
 				<p class="sg-bulk-bar">
 					<label><input type="checkbox" id="sg-select-all-2"> Seleziona tutti</label>
 					<button type="button" class="button button-primary" id="sg-bulk-quar">Metti in quarantena i selezionati (<span id="sg-pick-count">0</span>)</button>
@@ -448,8 +458,9 @@ class SG_Admin {
 					<input type="hidden" name="_back" value="security-guardian-scanner">
 					<span id="sg-bulk-fields"></span>
 				</form>
+				<?php endif; ?>
 
-				<p class="description">Suggerimento: prima di eliminare, metti in quarantena. Se il sito continua a funzionare, elimina definitivamente dalla pagina Quarantena.</p>
+				<p class="description">Suggerimento: prima di eliminare, metti in quarantena. Se il sito continua a funzionare, elimina definitivamente dalla pagina Quarantena. I file del core si riportano invece all'originale con "Ripristina originale".</p>
 			<?php elseif ( ! empty( $last['scanned_at'] ) ) : ?>
 				<div class="notice notice-success"><p>Nessuna minaccia trovata nell'ultima scansione del <?php echo esc_html( $last['scanned_at'] ); ?>.</p></div>
 			<?php endif; ?>
