@@ -43,8 +43,10 @@ class SG_Scanner {
 		'/\b(c99shell|r57shell|b374k|wsoshell|filesman\b.{0,40}\bshell)\b/i' => 'Firma di webshell nota',
 		// Caricamento di un file PHP via upload.
 		'/\bmove_uploaded_file\s*\([^)]*\.(php|phtml|php[0-9])\b/i' => 'Upload di un file PHP',
-		// Scrittura di codice PHP in un file (dropper).
-		'/\bf(write|put_contents)\s*\([^)]*,\s*[\'"][^\'"]{0,20}<\?php/i' => 'Scrittura di codice PHP in un file (possibile dropper)',
+		// NB: la firma "scrittura di codice PHP in un file" è stata rimossa:
+		// troppi plugin legittimi (cache, migrazioni, generatori di config)
+		// scrivono file PHP, quindi generava solo falsi positivi. I dropper
+		// reali vengono comunque colti dalle firme eval/base64/input utente.
 	);
 
 	public function __construct( $logger, $quarantine ) {
