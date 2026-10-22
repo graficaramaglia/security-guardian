@@ -176,6 +176,11 @@ class SG_Admin {
 				$notice = '2fa_disabled';
 				break;
 
+			case '2fa_cancel':
+				$this->guardian->two_factor->cancel_setup( get_current_user_id() );
+				$notice = '2fa_cancelled';
+				break;
+
 			case '2fa_regen':
 				$res = $this->guardian->two_factor->generate_backup_codes( get_current_user_id() );
 				set_transient( 'sg_2fa_codes_' . get_current_user_id(), $res, 300 );
@@ -267,6 +272,7 @@ class SG_Admin {
 			'2fa_started'    => array( 'info', 'Scansiona la chiave con l\'app e conferma con un codice.' ),
 			'2fa_enabled'    => array( 'success', '2FA attivata. Salva subito i codici di backup qui sotto.' ),
 			'2fa_disabled'   => array( 'success', '2FA disattivata per il tuo account.' ),
+			'2fa_cancelled'  => array( 'info', 'Configurazione 2FA annullata. Puoi ricominciare quando vuoi.' ),
 			'2fa_regen'      => array( 'success', 'Nuovi codici di backup generati. Salvali ora.' ),
 			'update_checked' => array( 'success', 'Controllo aggiornamenti eseguito. Se è disponibile una nuova versione, la vedrai nella pagina Plugin.' ),
 		);
@@ -627,15 +633,17 @@ class SG_Admin {
 
 				<h2>Passo 2 — Conferma</h2>
 				<p>Inserisci il codice a 6 cifre che vedi ora nell'app:</p>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<?php wp_nonce_field( 'sg_action' ); ?>
-					<input type="hidden" name="action" value="sg_action">
-					<input type="hidden" name="sg_do" value="2fa_confirm">
-					<input type="hidden" name="_back" value="security-guardian-2fa">
-					<input type="text" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" class="regular-text" style="max-width:140px" required>
-					<button type="submit" class="button button-primary">Attiva 2FA</button>
-					<?php $this->action_button( '2fa_disable', 'Annulla', array(), 'security-guardian-2fa' ); ?>
-				</form>
+				<div style="display:flex;align-items:flex-start;gap:8px">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
+						<?php wp_nonce_field( 'sg_action' ); ?>
+						<input type="hidden" name="action" value="sg_action">
+						<input type="hidden" name="sg_do" value="2fa_confirm">
+						<input type="hidden" name="_back" value="security-guardian-2fa">
+						<input type="text" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" class="regular-text" style="max-width:140px" required>
+						<button type="submit" class="button button-primary">Attiva 2FA</button>
+					</form>
+					<?php $this->action_button( '2fa_cancel', 'Annulla', array(), 'security-guardian-2fa' ); ?>
+				</div>
 
 			<?php else : ?>
 				<p>La verifica a due fattori aggiunge un codice temporaneo generato dal tuo telefono, oltre alla password. Anche se qualcuno ruba la password, senza il telefono non entra.</p>

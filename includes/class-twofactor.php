@@ -118,7 +118,7 @@ class SG_TwoFactor {
 		delete_user_meta( $user_id, self::META_PENDING );
 
 		$codes = $this->generate_backup_codes( $user_id );
-		$this->logger->log( '2fa_enabled', '2FA attivata per user ID ' . $user_id, 'info' );
+		$this->logger->log( '2fa_enabled', '2FA attivata per ' . $this->user_label( $user_id ), 'info' );
 		return $codes; // mostrati una sola volta
 	}
 
@@ -127,8 +127,21 @@ class SG_TwoFactor {
 		delete_user_meta( $user_id, self::META_ENABLED );
 		delete_user_meta( $user_id, self::META_PENDING );
 		delete_user_meta( $user_id, self::META_BACKUP );
-		$this->logger->log( '2fa_disabled', '2FA disattivata per user ID ' . $user_id, 'warning' );
+		$this->logger->log( '2fa_disabled', '2FA disattivata per ' . $this->user_label( $user_id ), 'warning' );
 		return true;
+	}
+
+	/** Annulla una configurazione in corso senza toccare una 2FA già attiva. */
+	public function cancel_setup( $user_id ) {
+		delete_user_meta( $user_id, self::META_PENDING );
+		$this->logger->log( '2fa_setup_cancelled', 'Configurazione 2FA annullata per ' . $this->user_label( $user_id ), 'info' );
+		return true;
+	}
+
+	/** Etichetta leggibile dell'utente (login), con fallback all'ID. */
+	private function user_label( $user_id ) {
+		$u = get_userdata( $user_id );
+		return $u ? $u->user_login : ( 'user ID ' . $user_id );
 	}
 
 	public function get_otpauth_uri( $secret, $user ) {

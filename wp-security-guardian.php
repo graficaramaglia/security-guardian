@@ -3,7 +3,7 @@
  * Plugin Name:       Security Guardian
  * Plugin URI:        https://github.com/graficaramaglia/security-guardian
  * Description:       Protezione, scansione e ripristino per WordPress: anti brute force, indurimento, mini firewall, scanner del core e del database, quarantena, ripristino degli originali e 2FA.
- * Version:           1.2.5
+ * Version:           1.2.6
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Giovanni
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SG_VERSION', '1.2.5' );
+define( 'SG_VERSION', '1.2.6' );
 define( 'SG_FILE', __FILE__ );
 define( 'SG_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SG_URL', plugin_dir_url( __FILE__ ) );
