@@ -267,14 +267,32 @@ class SG_Scanner {
 			}
 
 			// Un .php dentro uploads merita attenzione, ma ignoriamo i file
-			// "guardiano" innocui (index.php vuoti, blocchi ABSPATH) che molti
-			// plugin legittimi inseriscono lì.
+			// "guardiano" innocui (index.php, blocchi ABSPATH, exit/header)
+			// che moltissimi plugin legittimi inseriscono lì.
 			if ( in_array( $ext, array( 'php', 'phtml', 'php5', 'phar' ), true )
 				&& 0 === strpos( $path, $uploads['basedir'] ) ) {
 				$content = $fileinfo->getSize() < 1024 * 1024 ? file_get_contents( $path ) : '';
-				if ( '' !== $content && $this->is_benign_php( $content ) ) {
+
+				// 1) Se contiene una firma di malware, è grave a prescindere dal nome.
+				$sig = $this->match_signature( $content );
+				if ( $sig ) {
+					$threats[] = array(
+						'file'   => $path,
+						'reason' => $sig,
+						'type'   => 'heuristic',
+					);
 					continue;
 				}
+
+				// 2) File guardiano innocuo (vuoto, solo exit/die/header, blocco
+				//    ABSPATH) o il classico index.php di protezione: si ignora.
+				$is_guard = ( '' !== $content && $this->is_benign_php( $content ) )
+					|| ( 'index.php' === strtolower( $fileinfo->getFilename() ) && ! $sig );
+				if ( $is_guard ) {
+					continue;
+				}
+
+				// 3) Altrimenti lo segnaliamo come da verificare.
 				$threats[] = array(
 					'file'   => $path,
 					'reason' => 'File PHP nella cartella uploads (da verificare)',
@@ -296,19 +314,33 @@ class SG_Scanner {
 				continue;
 			}
 
-			foreach ( $this->malware_signatures as $pattern => $reason ) {
-				if ( preg_match( $pattern, $content ) ) {
-					$threats[] = array(
-						'file'   => $path,
-						'reason' => $reason,
-						'type'   => 'heuristic',
-					);
-					break; // una segnalazione per file è sufficiente
-				}
+			$sig = $this->match_signature( $content );
+			if ( $sig ) {
+				$threats[] = array(
+					'file'   => $path,
+					'reason' => $sig,
+					'type'   => 'heuristic',
+				);
 			}
 		}
 
 		return $threats;
+	}
+
+	/**
+	 * Restituisce la descrizione della prima firma di malware che combacia,
+	 * oppure false se il contenuto è pulito.
+	 */
+	private function match_signature( $content ) {
+		if ( '' === $content || false === $content ) {
+			return false;
+		}
+		foreach ( $this->malware_signatures as $pattern => $reason ) {
+			if ( preg_match( $pattern, $content ) ) {
+				return $reason;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -333,6 +365,11 @@ class SG_Scanner {
 		}
 		// if ( ! defined('ABSPATH') ) exit;  (eventualmente con graffe)
 		if ( preg_match( '/^if\s*\(\s*!?\s*defined\s*\(\s*[\'"]ABSPATH[\'"]\s*\)\s*\)\s*\{?\s*(exit|die|return)\s*(\([^)]*\))?\s*;?\s*\}?$/i', $c ) ) {
+			return true;
+		}
+		// Una o più header(...) seguite da un eventuale exit/die (file che
+		// negano l'accesso, es. "header('HTTP/1.0 403 Forbidden'); exit;").
+		if ( preg_match( '/^(header\s*\([^;]*\)\s*;\s*)+((exit|die)\s*(\([^)]*\))?\s*;?\s*)?$/i', $c ) ) {
 			return true;
 		}
 		return false;
