@@ -117,6 +117,10 @@ class SG_Updater {
 		}
 
 		$remote_version = $this->remote_version( $remote );
+		// Confrontiamo con la versione letta dal file su disco, non con la
+		// costante caricata in memoria: subito dopo un aggiornamento la
+		// costante è ancora quella vecchia e farebbe ricomparire l'avviso.
+		$installed      = $this->installed_version();
 		$item_base      = array(
 			'id'          => $this->repo_url(),
 			'slug'        => $this->slug,
@@ -130,15 +134,30 @@ class SG_Updater {
 			'requires_php'=> '7.4',
 		);
 
-		if ( version_compare( $remote_version, $this->version, '>' ) ) {
+		if ( version_compare( $remote_version, $installed, '>' ) ) {
 			$transient->response[ $this->basename ] = (object) $item_base;
 		} else {
 			// Segnala "nessun aggiornamento" (così WP non interroga wordpress.org).
-			$item_base['new_version'] = $this->version;
+			$item_base['new_version'] = $installed;
 			$transient->no_update[ $this->basename ] = (object) $item_base;
 		}
 
 		return $transient;
+	}
+
+	/**
+	 * Versione realmente installata, letta dall'header del file su disco.
+	 * Più affidabile della costante SG_VERSION subito dopo un aggiornamento.
+	 */
+	private function installed_version() {
+		$file = WP_PLUGIN_DIR . '/' . $this->basename;
+		if ( function_exists( 'get_file_data' ) && file_exists( $file ) ) {
+			$data = get_file_data( $file, array( 'Version' => 'Version' ) );
+			if ( ! empty( $data['Version'] ) ) {
+				return $data['Version'];
+			}
+		}
+		return $this->version;
 	}
 
 	/**
@@ -257,12 +276,13 @@ class SG_Updater {
 	 * @return array {installed, latest, update_available}
 	 */
 	public function status() {
-		$remote = $this->get_remote_info();
-		$latest = $remote ? $this->remote_version( $remote ) : '';
+		$remote    = $this->get_remote_info();
+		$latest    = $remote ? $this->remote_version( $remote ) : '';
+		$installed = $this->installed_version();
 		return array(
-			'installed'        => $this->version,
+			'installed'        => $installed,
 			'latest'           => $latest,
-			'update_available' => $latest && version_compare( $latest, $this->version, '>' ),
+			'update_available' => $latest && version_compare( $latest, $installed, '>' ),
 		);
 	}
 }
