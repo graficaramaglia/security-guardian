@@ -24,8 +24,31 @@ class SG_TwoFactor {
 	const DIGITS = 6;
 	const PERIOD = 30;
 
-	public function __construct( $logger ) {
+	/** Ruoli a cui si applica la 2FA. */
+	private $roles;
+
+	public function __construct( $logger, $roles = array( 'administrator' ) ) {
 		$this->logger = $logger;
+		$this->roles  = is_array( $roles ) ? $roles : array( 'administrator' );
+	}
+
+	/**
+	 * Vero se all'utente si applica la 2FA, in base al suo ruolo.
+	 * Se non è stato scelto alcun ruolo, ricade sugli amministratori.
+	 */
+	public function user_eligible( $user_id ) {
+		$u = get_userdata( $user_id );
+		if ( ! $u ) {
+			return false;
+		}
+		if ( empty( $this->roles ) ) {
+			return user_can( $u, 'manage_options' );
+		}
+		return (bool) array_intersect( (array) $u->roles, $this->roles );
+	}
+
+	public function get_roles() {
+		return $this->roles;
 	}
 
 	public function boot() {
@@ -42,6 +65,10 @@ class SG_TwoFactor {
 	public function verify_second_factor( $user, $username, $password ) {
 		// Se l'autenticazione precedente è fallita, lascia stare.
 		if ( ! ( $user instanceof WP_User ) ) {
+			return $user;
+		}
+		// Si applica solo ai ruoli scelti e solo se l'utente l'ha attivata.
+		if ( ! $this->user_eligible( $user->ID ) ) {
 			return $user;
 		}
 		if ( ! $this->is_enabled( $user->ID ) ) {

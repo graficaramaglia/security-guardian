@@ -225,6 +225,12 @@ class SG_Admin {
 		$schedule                = sanitize_key( $_POST['scan_schedule'] ?? 'daily' );
 		$s['scan_schedule']      = in_array( $schedule, array( 'hourly', 'daily', 'twicedaily', 'none' ), true ) ? $schedule : 'daily';
 
+		// Ruoli a cui si applica la 2FA: solo ruoli realmente esistenti.
+		$valid_roles = function_exists( 'wp_roles' ) ? array_keys( wp_roles()->get_names() ) : array( 'administrator' );
+		$posted      = isset( $_POST['twofactor_roles'] ) ? (array) wp_unslash( $_POST['twofactor_roles'] ) : array();
+		$posted      = array_values( array_intersect( array_map( 'sanitize_key', $posted ), $valid_roles ) );
+		$s['twofactor_roles'] = ! empty( $posted ) ? $posted : array( 'administrator' );
+
 		$this->guardian->update_settings( $s );
 	}
 
@@ -603,6 +609,14 @@ class SG_Admin {
 			<h1>Autenticazione a due fattori</h1>
 			<?php $this->notice(); ?>
 
+			<?php if ( ! $tf->user_eligible( $uid ) ) : ?>
+				<div class="notice notice-info inline"><p>La verifica a due fattori non è richiesta per il tuo ruolo su questo sito. Un amministratore può cambiare i ruoli interessati in <a href="<?php echo esc_url( admin_url( 'admin.php?page=security-guardian-settings' ) ); ?>">Impostazioni</a>.</p></div>
+			</div>
+			<?php
+			return;
+			endif;
+			?>
+
 			<?php if ( $codes ) : ?>
 				<div class="sg-backup-box">
 					<h2>Codici di backup — salvali adesso</h2>
@@ -757,6 +771,24 @@ class SG_Admin {
 				<h2>Autenticazione a due fattori</h2>
 				<table class="form-table">
 					<?php $this->checkbox_row( 'twofactor_enabled', 'Abilita la 2FA sul sito (ogni utente la attiva dal proprio account)', $s ); ?>
+					<tr>
+						<th>Ruoli a cui si applica</th>
+						<td>
+							<?php
+							$selected_roles = isset( $s['twofactor_roles'] ) && is_array( $s['twofactor_roles'] ) ? $s['twofactor_roles'] : array( 'administrator' );
+							$all_roles      = function_exists( 'wp_roles' ) ? wp_roles()->get_names() : array( 'administrator' => 'Administrator' );
+							foreach ( $all_roles as $role_key => $role_name ) {
+								printf(
+									'<label style="display:inline-block;min-width:200px;margin:2px 0"><input type="checkbox" name="twofactor_roles[]" value="%s" %s> %s</label>',
+									esc_attr( $role_key ),
+									checked( in_array( $role_key, $selected_roles, true ), true, false ),
+									esc_html( $role_name )
+								);
+							}
+							?>
+							<p class="description">Solo gli utenti con uno di questi ruoli potranno attivare la 2FA e la vedranno richiesta al login. Es.: Amministratore ed Editore, ma non Cliente o Sottoscrittore.</p>
+						</td>
+					</tr>
 				</table>
 
 				<h2>Scansione e notifiche</h2>

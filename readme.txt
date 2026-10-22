@@ -4,7 +4,7 @@ Tags: security, firewall, malware, scanner, brute force
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.2.6
+Stable tag: 2.0.0
 License: GPLv2 or later
 
 Protezione, scansione e ripristino per WordPress.
@@ -38,6 +38,10 @@ Security Guardian mette insieme in un unico plugin:
 * Dopo aver pulito un sito compromesso, cambia le password (admin, FTP, database) e le chiavi di sicurezza in wp-config.php.
 
 == Changelog ==
+
+= 2.0.0 =
+* Nuovo: scelta dei ruoli a cui si applica la 2FA (es. solo Amministratore ed Editore, non Cliente o Sottoscrittore). In Impostazioni, sezione Autenticazione a due fattori.
+* Gli utenti con ruoli non selezionati non vedono la configurazione 2FA e non la ricevono al login.
 
 = 1.2.6 =
 * Corretto bug importante nell'attivazione della 2FA: il pulsante "Annulla" creava un modulo annidato che faceva partire per errore la disattivazione quando si premeva "Attiva 2FA", lasciando la pagina sempre su "Configura". Ora l'attivazione va a buon fine al primo colpo.

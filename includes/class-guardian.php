@@ -40,8 +40,11 @@ class SG_Guardian {
 		$this->scanner    = new SG_Scanner( $this->logger, $this->quarantine );
 		$this->db_scanner = new SG_DB_Scanner( $this->logger );
 
-		// Autenticazione a due fattori.
-		$this->two_factor = new SG_TwoFactor( $this->logger );
+		// Autenticazione a due fattori (con i ruoli a cui si applica).
+		$roles            = isset( $settings['twofactor_roles'] ) && is_array( $settings['twofactor_roles'] )
+			? $settings['twofactor_roles']
+			: array( 'administrator' );
+		$this->two_factor = new SG_TwoFactor( $this->logger, $roles );
 		if ( ! empty( $settings['twofactor_enabled'] ) ) {
 			$this->two_factor->boot();
 		}
@@ -92,6 +95,7 @@ class SG_Guardian {
 			'notify_email'          => get_option( 'admin_email' ),
 			'notify_enabled'        => 1,
 			'twofactor_enabled'     => 1,
+			'twofactor_roles'       => array( 'administrator' ),
 		);
 		$saved = get_option( self::OPTION_KEY, array() );
 		return wp_parse_args( $saved, $defaults );
