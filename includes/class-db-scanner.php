@@ -95,10 +95,18 @@ class SG_DB_Scanner {
 		global $wpdb;
 		$found = array();
 		$where = $this->like_where( 'option_value' );
-		// Escludiamo le nostre stesse opzioni per evitare falsi positivi.
+		// Escludiamo:
+		// - le nostre stesse opzioni (sg_*);
+		// - i transient di WordPress (cache che si rigenera da sola e che
+		//   contiene spesso HTML legittimo scaricato da wordpress.org:
+		//   _transient_*, _site_transient_* e i relativi timeout).
 		$rows = $wpdb->get_results(
 			"SELECT option_id, option_name, option_value FROM {$wpdb->options}
-			 WHERE $where AND option_name NOT LIKE 'sg\_%' LIMIT 500"
+			 WHERE $where
+			   AND option_name NOT LIKE 'sg\_%'
+			   AND option_name NOT LIKE '\_transient\_%'
+			   AND option_name NOT LIKE '\_site\_transient\_%'
+			 LIMIT 500"
 		);
 		foreach ( (array) $rows as $row ) {
 			$reason = $this->match( $row->option_value );
