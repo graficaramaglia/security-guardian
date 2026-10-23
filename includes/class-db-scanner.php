@@ -55,9 +55,16 @@ class SG_DB_Scanner {
 
 		// Aggiunge criticità e consigli di protezione a ogni elemento.
 		foreach ( $findings as &$f ) {
-			$meta         = $this->classify( $f['reason'] );
+			$meta          = $this->classify( $f['reason'] );
 			$f['severity'] = $meta['severity'];
 			$f['detail']   = $meta['detail'];
+			// Contenuti creati da plugin (snippet di codice CSS/JS, ecc.):
+			// lo <script> è quasi sempre legittimo e "Pulisci" rimuoverebbe
+			// il codice del plugin. Abbassiamo e avvisiamo.
+			if ( ! empty( $f['label'] ) && 0 === strpos( $f['label'], 'Contenuto plugin' ) ) {
+				$f['severity'] = 'bassa';
+				$f['detail']   = 'Questo non è un articolo del blog ma un contenuto gestito da un plugin (tipico dei plugin di codice/snippet CSS e JavaScript). Lo script qui è quasi sempre legittimo. NON usare "Pulisci" se non sei sicuro: rimuoverebbe il codice del plugin. Verificalo dal pannello del plugin che lo gestisce.';
+			}
 		}
 		unset( $f );
 
@@ -128,16 +135,28 @@ class SG_DB_Scanner {
 		$found = array();
 		$where = $this->like_where( 'post_content' );
 		$rows  = $wpdb->get_results(
-			"SELECT ID, post_title, post_content FROM {$wpdb->posts}
+			"SELECT ID, post_title, post_type, post_content FROM {$wpdb->posts}
 			 WHERE $where AND post_status NOT IN ('trash','auto-draft') LIMIT 500"
 		);
+		// Tipi standard a cui il pubblico accede: per gli altri (contenuti
+		// creati da plugin, es. snippet di codice CSS/JS) lo indichiamo nel
+		// nome, perché lì lo <script> è di norma legittimo.
+		$standard = array( 'post', 'page' );
 		foreach ( (array) $rows as $row ) {
 			$reason = $this->match( $row->post_content );
 			if ( $reason ) {
+				$type = $row->post_type;
+				if ( in_array( $type, $standard, true ) ) {
+					$label = ( 'page' === $type ? 'Pagina #' : 'Articolo #' ) . $row->ID . ': ' . $row->post_title;
+				} else {
+					// Contenuto di un plugin: segnaliamo il tipo, è il caso
+					// tipico dei plugin di codice (snippet CSS/JS).
+					$label = 'Contenuto plugin #' . $row->ID . ' [tipo: ' . $type . ']: ' . $row->post_title;
+				}
 				$found[] = array(
 					'source'  => 'post',
 					'id'      => $row->ID,
-					'label'   => 'Articolo #' . $row->ID . ': ' . $row->post_title,
+					'label'   => $label,
 					'reason'  => $reason,
 					'snippet' => $this->snippet( $row->post_content ),
 				);
