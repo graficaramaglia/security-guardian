@@ -134,9 +134,15 @@ class SG_DB_Scanner {
 		global $wpdb;
 		$found = array();
 		$where = $this->like_where( 'post_content' );
+		// Escludiamo le revisioni: sono solo copie storiche di contenuti già
+		// esistenti, non vengono servite al pubblico e duplicano le
+		// segnalazioni della versione vera.
 		$rows  = $wpdb->get_results(
 			"SELECT ID, post_title, post_type, post_content FROM {$wpdb->posts}
-			 WHERE $where AND post_status NOT IN ('trash','auto-draft') LIMIT 500"
+			 WHERE $where
+			   AND post_status NOT IN ('trash','auto-draft')
+			   AND post_type != 'revision'
+			 LIMIT 500"
 		);
 		// Tipi standard a cui il pubblico accede: per gli altri (contenuti
 		// creati da plugin, es. snippet di codice CSS/JS) lo indichiamo nel

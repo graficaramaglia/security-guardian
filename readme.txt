@@ -4,7 +4,7 @@ Tags: security, firewall, malware, scanner, brute force
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 2.0.2
+Stable tag: 2.0.3
 License: GPLv2 or later
 
 Protezione, scansione e ripristino per WordPress.
@@ -38,6 +38,9 @@ Security Guardian mette insieme in un unico plugin:
 * Dopo aver pulito un sito compromesso, cambia le password (admin, FTP, database) e le chiavi di sicurezza in wp-config.php.
 
 == Changelog ==
+
+= 2.0.3 =
+* La scansione del database non controlla più le revisioni (copie storiche dei contenuti): erano solo rumore, duplicavano le segnalazioni della versione vera.
 
 = 2.0.2 =
 * Scansione database più chiara sui post: distingue articoli e pagine dai contenuti creati dai plugin (es. snippet di codice CSS/JS). Questi ultimi mostrano il tipo di contenuto, criticità Bassa e un avviso a non "pulirli" (rimuoverebbe il codice del plugin).
