@@ -55,7 +55,10 @@ class SG_Guardian {
 
 		// Il firewall deve agire il prima possibile, già a plugins_loaded.
 		if ( ! empty( $settings['firewall_enabled'] ) ) {
-			$this->firewall = new SG_Firewall( $this->logger );
+			$exclusions = isset( $settings['firewall_exclusions'] ) && is_array( $settings['firewall_exclusions'] )
+				? $settings['firewall_exclusions']
+				: array();
+			$this->firewall = new SG_Firewall( $this->logger, $exclusions );
 			$this->firewall->boot();
 		}
 
@@ -83,6 +86,7 @@ class SG_Guardian {
 	public function get_settings() {
 		$defaults = array(
 			'firewall_enabled'      => 1,
+			'firewall_exclusions'   => array(),
 			'brute_force_enabled'   => 1,
 			'max_login_attempts'    => 5,
 			'lockout_minutes'       => 20,

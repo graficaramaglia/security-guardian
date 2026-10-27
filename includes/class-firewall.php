@@ -15,14 +15,67 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SG_Firewall {
 
 	private $logger;
+	private $exclusions;
 
-	public function __construct( $logger ) {
-		$this->logger = $logger;
+	public function __construct( $logger, $exclusions = array() ) {
+		$this->logger     = $logger;
+		$this->exclusions = is_array( $exclusions ) ? $exclusions : array();
 	}
 
 	public function boot() {
+		// Non filtriamo i webhook dei gateway di pagamento e i percorsi esclusi.
+		if ( $this->is_whitelisted() ) {
+			return;
+		}
 		// Agiamo presto, ma dopo che WP ha caricato le funzioni di base.
 		$this->inspect_request();
+	}
+
+	/**
+	 * Richieste da NON ispezionare: webhook/callback dei gateway di
+	 * pagamento (PayPal, Stripe, Klarna e altri via WooCommerce) e i
+	 * percorsi personalizzati scelti dall'utente.
+	 *
+	 * Importante: per i percorsi controlliamo SOLO il path dell'URL, non la
+	 * query string, così un attaccante non può aggirare il firewall
+	 * aggiungendo una parola chiave nei parametri.
+	 */
+	private function is_whitelisted() {
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+
+		// 1) Callback dei gateway via WooCommerce (?wc-api=GATEWAY):
+		//    il valore identifica il gateway; lo confrontiamo con i nomi noti.
+		if ( isset( $_GET['wc-api'] ) ) {
+			$gw = is_string( $_GET['wc-api'] ) ? $_GET['wc-api'] : '';
+			if ( preg_match( '/(stripe|paypal|ppcp|ppec|klarna|kco|braintree|sofort|mollie|nexi|satispay)/i', $gw ) ) {
+				return true;
+			}
+		}
+
+		// 2) Percorsi (solo path) tipici dei webhook di pagamento.
+		$payment_paths = array(
+			'#(^|/)wc-api/#i',                                                   // forma "permalink" di wc-api
+			'#/wp-json/[^/]*(stripe|paypal|ppcp|klarna|kco|mollie|nexi)#i',      // route REST dei gateway
+			'#/(stripe|paypal|klarna)[-_]?(webhook|ipn|notification|callback|push)#i',
+		);
+		$payment_paths = apply_filters( 'sg_firewall_payment_paths', $payment_paths );
+		foreach ( $payment_paths as $pattern ) {
+			if ( $path && preg_match( $pattern, $path ) ) {
+				return true;
+			}
+		}
+
+		// 3) Percorsi personalizzati inseriti dall'utente (confronto semplice).
+		foreach ( $this->exclusions as $frag ) {
+			$frag = trim( (string) $frag );
+			if ( '' !== $frag && false !== stripos( $path, $frag ) ) {
+				return true;
+			}
+		}
+
+		// 4) Punto di estensione generale.
+		return (bool) apply_filters( 'sg_firewall_whitelist', false, $path );
 	}
 
 	/**

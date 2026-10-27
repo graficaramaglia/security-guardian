@@ -221,6 +221,25 @@ class SG_Admin {
 		}
 		$s['max_login_attempts'] = max( 1, absint( $_POST['max_login_attempts'] ?? 5 ) );
 		$s['lockout_minutes']    = max( 1, absint( $_POST['lockout_minutes'] ?? 20 ) );
+
+		// Percorsi esclusi dal firewall (uno per riga). Solo il path, niente
+		// spazi né query string.
+		$raw_excl = isset( $_POST['firewall_exclusions'] ) ? wp_unslash( $_POST['firewall_exclusions'] ) : '';
+		$lines    = preg_split( '/[\r\n]+/', (string) $raw_excl );
+		$excl     = array();
+		foreach ( (array) $lines as $line ) {
+			$line = trim( $line );
+			if ( '' === $line ) {
+				continue;
+			}
+			// Teniamo solo il path, rimuoviamo eventuale dominio e query.
+			$line = (string) wp_parse_url( $line, PHP_URL_PATH ) ?: $line;
+			$line = sanitize_text_field( $line );
+			if ( '' !== $line ) {
+				$excl[] = $line;
+			}
+		}
+		$s['firewall_exclusions'] = array_values( array_unique( $excl ) );
 		$s['notify_email']       = sanitize_email( $_POST['notify_email'] ?? get_option( 'admin_email' ) );
 		$schedule                = sanitize_key( $_POST['scan_schedule'] ?? 'daily' );
 		$s['scan_schedule']      = in_array( $schedule, array( 'hourly', 'daily', 'twicedaily', 'none' ), true ) ? $schedule : 'daily';
@@ -754,6 +773,19 @@ class SG_Admin {
 					<tr>
 						<th>Minuti di blocco</th>
 						<td><input type="number" min="1" name="lockout_minutes" value="<?php echo esc_attr( $s['lockout_minutes'] ); ?>"></td>
+					</tr>
+					<tr>
+						<th>Percorsi esclusi dal firewall</th>
+						<td>
+							<?php
+							$excl = isset( $s['firewall_exclusions'] ) && is_array( $s['firewall_exclusions'] ) ? $s['firewall_exclusions'] : array();
+							?>
+							<textarea name="firewall_exclusions" rows="4" class="large-text code" placeholder="/mio-webhook-personalizzato/"><?php echo esc_textarea( implode( "\n", $excl ) ); ?></textarea>
+							<p class="description">
+								Un percorso per riga. Le richieste verso questi percorsi non vengono filtrate dal firewall: utile per i webhook dei pagamenti.<br>
+								<strong>PayPal, Stripe e Klarna sono già esclusi automaticamente</strong> (insieme ai gateway WooCommerce): aggiungi qui solo eventuali altri sistemi personalizzati.
+							</p>
+						</td>
 					</tr>
 				</table>
 
