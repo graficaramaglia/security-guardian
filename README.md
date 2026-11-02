@@ -61,6 +61,7 @@ Ogni elemento trovato è classificato con un livello di **criticità — Alta, M
 - **Quarantena** — Invece di cancellare subito un file sospetto, lo isola in una cartella protetta e non eseguibile. Se era un falso positivo lo ripristini con un clic; altrimenti lo elimini definitivamente. Selezione multipla e azione in blocco.
 - **Ripristino degli originali** — Per i file del core modificati, scarica e ripristina la versione ufficiale corretta con un clic.
 - **Pulizia del database** — Rimuove solo il codice pericoloso dai contenuti infetti, salvando sempre l'originale in una quarantena dedicata, così ogni intervento è reversibile.
+- **Ignora falsi positivi** — Marca come sicuro un elemento legittimo (uno script di analytics, una mappa in una pagina Contatti, il codice di un plugin): smette di comparire nei risultati e nelle email. L'impronta include il contenuto attuale, quindi se quel file o contenuto viene modificato o infettato in seguito, torna automaticamente a essere segnalato.
 
 ### 🔐 Autenticazione a due fattori (2FA)
 

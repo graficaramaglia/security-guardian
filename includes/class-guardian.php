@@ -115,20 +115,24 @@ class SG_Guardian {
 		$db      = $this->db_scanner->full_db_scan();
 		$settings = $this->get_settings();
 
-		$total = count( $results['threats'] ) + count( $db );
+		// Escludiamo gli elementi che l'utente ha marcato come sicuri (ignorati).
+		$threats = SG_Whitelist::filter( isset( $results['threats'] ) ? $results['threats'] : array() );
+		$dbf     = SG_Whitelist::filter( $db );
+
+		$total = count( $threats ) + count( $dbf );
 		if ( ! empty( $settings['notify_enabled'] ) && $total > 0 ) {
-			$this->send_threat_email( $results, $db, $settings['notify_email'] );
+			$this->send_threat_email( $threats, $dbf, $settings['notify_email'] );
 		}
 	}
 
-	private function send_threat_email( $results, $db, $email ) {
-		$count   = count( $results['threats'] ) + count( $db );
+	private function send_threat_email( $threats, $db, $email ) {
+		$count   = count( $threats ) + count( $db );
 		$subject = sprintf( '[Security Guardian] %d possibili minacce su %s', $count, get_bloginfo( 'name' ) );
 		$body    = "La scansione pianificata ha trovato elementi sospetti.\n\n";
 
-		if ( ! empty( $results['threats'] ) ) {
+		if ( ! empty( $threats ) ) {
 			$body .= "FILE:\n";
-			foreach ( $results['threats'] as $t ) {
+			foreach ( $threats as $t ) {
 				$body .= sprintf( "- [criticità %s] %s — %s\n", strtoupper( $t['severity'] ?? 'media' ), $t['reason'], $t['file'] );
 			}
 			$body .= "\n";

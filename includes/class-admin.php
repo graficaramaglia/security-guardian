@@ -196,6 +196,20 @@ class SG_Admin {
 				$this->guardian->logger->clear();
 				$notice = 'log_cleared';
 				break;
+
+			case 'ignore_item':
+				$fp    = isset( $_POST['fp'] ) ? sanitize_text_field( wp_unslash( $_POST['fp'] ) ) : '';
+				$label = isset( $_POST['label'] ) ? sanitize_text_field( wp_unslash( $_POST['label'] ) ) : '';
+				$kind  = isset( $_POST['kind'] ) ? sanitize_key( $_POST['kind'] ) : '';
+				SG_Whitelist::ignore( $fp, $label, $kind );
+				$notice = 'ignored';
+				break;
+
+			case 'unignore_item':
+				$fp = isset( $_POST['fp'] ) ? sanitize_text_field( wp_unslash( $_POST['fp'] ) ) : '';
+				SG_Whitelist::unignore( $fp );
+				$notice = 'unignored';
+				break;
 		}
 
 		$back = isset( $_REQUEST['_back'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_back'] ) ) : 'security-guardian';
@@ -300,6 +314,8 @@ class SG_Admin {
 			'2fa_cancelled'  => array( 'info', 'Configurazione 2FA annullata. Puoi ricominciare quando vuoi.' ),
 			'2fa_regen'      => array( 'success', 'Nuovi codici di backup generati. Salvali ora.' ),
 			'update_checked' => array( 'success', 'Controllo aggiornamenti eseguito. Se è disponibile una nuova versione, la vedrai nella pagina Plugin.' ),
+			'ignored'        => array( 'success', 'Elemento ignorato: non comparirà più nei risultati né nelle email. Se quel contenuto in futuro cambia, verrà segnalato di nuovo.' ),
+			'unignored'      => array( 'success', 'Elemento ripristinato: tornerà a essere controllato e segnalato.' ),
 		);
 		if ( 0 === strpos( $n, 'error:' ) ) {
 			printf( '<div class="notice notice-error is-dismissible"><p>%s</p></div>', esc_html( substr( $n, 6 ) ) );
@@ -331,7 +347,7 @@ class SG_Admin {
 	public function page_dashboard() {
 		$last = $this->guardian->scanner->get_last_scan();
 		$logs = $this->guardian->logger->get_recent( 8 );
-		$threats = isset( $last['threats'] ) ? count( $last['threats'] ) : null;
+		$threats = isset( $last['threats'] ) ? count( SG_Whitelist::filter( $last['threats'] ) ) : null;
 		?>
 		<div class="wrap sg-wrap">
 			<h1><span class="dashicons dashicons-shield-alt"></span> Security Guardian</h1>
@@ -423,7 +439,8 @@ class SG_Admin {
 	}
 
 	public function page_scanner() {
-		$last = $this->guardian->scanner->get_last_scan();
+		$last    = $this->guardian->scanner->get_last_scan();
+		$threats = SG_Whitelist::filter( isset( $last['threats'] ) ? $last['threats'] : array() );
 		?>
 		<div class="wrap sg-wrap">
 			<h1>Scansione</h1>
@@ -439,17 +456,17 @@ class SG_Admin {
 				<div class="notice notice-warning"><p>Scansione core: <?php echo esc_html( $last['core_error'] ); ?></p></div>
 			<?php endif; ?>
 
-			<?php if ( ! empty( $last['threats'] ) ) : ?>
+			<?php if ( ! empty( $threats ) ) : ?>
 				<?php
 				$has_quar = false;
-				foreach ( $last['threats'] as $t ) {
+				foreach ( $threats as $t ) {
 					if ( $this->is_quarantinable( $t ) ) {
 						$has_quar = true;
 						break;
 					}
 				}
 				?>
-				<h2>Risultati (<?php echo count( $last['threats'] ); ?>)</h2>
+				<h2>Risultati (<?php echo count( $threats ); ?>)</h2>
 				<?php $this->crit_legend(); ?>
 				<table class="widefat striped sg-results">
 					<thead><tr>
@@ -457,7 +474,7 @@ class SG_Admin {
 						<th>Criticità</th><th>File</th><th>Motivo e come proteggersi</th><th>Azione</th>
 					</tr></thead>
 					<tbody>
-					<?php foreach ( $last['threats'] as $t ) : ?>
+					<?php foreach ( $threats as $t ) : ?>
 						<tr>
 							<td class="check-column">
 								<?php if ( $this->is_quarantinable( $t ) ) : ?>
@@ -495,7 +512,39 @@ class SG_Admin {
 			<?php elseif ( ! empty( $last['scanned_at'] ) ) : ?>
 				<div class="notice notice-success"><p>Nessuna minaccia trovata nell'ultima scansione del <?php echo esc_html( $last['scanned_at'] ); ?>.</p></div>
 			<?php endif; ?>
+
+			<?php $this->ignored_section( 'file', 'security-guardian-scanner' ); ?>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Tabella degli elementi ignorati (whitelist), con possibilità di
+	 * rimetterli sotto controllo.
+	 *
+	 * @param string $kind 'file' | 'db'.
+	 * @param string $back Pagina a cui tornare dopo l'azione.
+	 */
+	private function ignored_section( $kind, $back ) {
+		$rows = SG_Whitelist::by_kind( $kind );
+		if ( empty( $rows ) ) {
+			return;
+		}
+		?>
+		<h2>Elementi ignorati (<?php echo count( $rows ); ?>)</h2>
+		<p class="description">Li hai marcati come sicuri: non vengono più segnalati né inviati per email. Se il loro contenuto cambia in futuro, torneranno a comparire. Usa "Ripristina" per rimetterli sotto controllo.</p>
+		<table class="widefat striped">
+			<thead><tr><th>Elemento</th><th>Ignorato il</th><th>Azione</th></tr></thead>
+			<tbody>
+			<?php foreach ( $rows as $fp => $meta ) : ?>
+				<tr>
+					<td><?php echo esc_html( ! empty( $meta['label'] ) ? $meta['label'] : $fp ); ?></td>
+					<td><?php echo esc_html( isset( $meta['date'] ) ? $meta['date'] : '' ); ?></td>
+					<td><?php $this->action_button( 'unignore_item', 'Ripristina', array( 'fp' => $fp ), $back ); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
 		<?php
 	}
 
@@ -515,8 +564,12 @@ class SG_Admin {
 			$this->action_button( 'restore_core', 'Ripristina originale', array( 'file' => $t['file'] ), $back, 'button-primary' );
 		} elseif ( $this->is_quarantinable( $t ) ) {
 			$this->action_button( 'quarantine', 'Metti in quarantena', array( 'file' => $this->quar_path( $t ) ), $back );
-		} else {
-			echo '—';
+		}
+		// Pulsante "Ignora": marca l'elemento come falso positivo/sicuro.
+		$fp = isset( $t['fp'] ) ? $t['fp'] : '';
+		if ( '' !== $fp ) {
+			$label = ( isset( $t['reason'] ) ? $t['reason'] : '' ) . ' — ' . ( isset( $t['file'] ) ? $t['file'] : '' );
+			$this->action_button( 'ignore_item', 'Ignora', array( 'fp' => $fp, 'label' => $label, 'kind' => 'file' ), $back, 'button-link' );
 		}
 	}
 
@@ -536,8 +589,9 @@ class SG_Admin {
 	}
 
 	public function page_database() {
-		$last = $this->guardian->db_scanner->get_last_scan();
-		$quar = $this->guardian->db_scanner->get_quarantine();
+		$last     = $this->guardian->db_scanner->get_last_scan();
+		$findings = SG_Whitelist::filter( isset( $last['findings'] ) ? $last['findings'] : array() );
+		$quar     = $this->guardian->db_scanner->get_quarantine();
 		?>
 		<div class="wrap sg-wrap">
 			<h1>Scansione del database</h1>
@@ -548,8 +602,8 @@ class SG_Admin {
 				<span id="sg-db-scan-status"></span>
 			</p>
 
-			<?php if ( ! empty( $last['findings'] ) ) : ?>
-				<h2>Elementi sospetti (<?php echo count( $last['findings'] ); ?>)</h2>
+			<?php if ( ! empty( $findings ) ) : ?>
+				<h2>Elementi sospetti (<?php echo count( $findings ); ?>)</h2>
 				<?php $this->crit_legend(); ?>
 				<table class="widefat striped sg-results">
 					<thead><tr>
@@ -557,7 +611,7 @@ class SG_Admin {
 						<th>Criticità</th><th>Posizione</th><th>Motivo e come proteggersi</th><th>Estratto</th><th>Azione</th>
 					</tr></thead>
 					<tbody>
-					<?php foreach ( $last['findings'] as $f ) : ?>
+					<?php foreach ( $findings as $f ) : ?>
 						<tr>
 							<td class="check-column">
 								<input type="checkbox" class="sg-pick-db" value="<?php echo esc_attr( $f['source'] . '|' . $f['id'] ); ?>">
@@ -569,7 +623,16 @@ class SG_Admin {
 								<?php if ( ! empty( $f['detail'] ) ) : ?><br><span class="sg-detail"><?php echo esc_html( $f['detail'] ); ?></span><?php endif; ?>
 							</td>
 							<td><code style="font-size:11px"><?php echo esc_html( $f['snippet'] ); ?></code></td>
-							<td><?php $this->action_button( 'db_clean', 'Pulisci', array( 'source' => $f['source'], 'id' => $f['id'] ), 'security-guardian-database' ); ?></td>
+							<td>
+								<?php $this->action_button( 'db_clean', 'Pulisci', array( 'source' => $f['source'], 'id' => $f['id'] ), 'security-guardian-database' ); ?>
+								<?php
+								$fp = isset( $f['fp'] ) ? $f['fp'] : '';
+								if ( '' !== $fp ) {
+									$label = ( isset( $f['label'] ) ? $f['label'] : '' ) . ' — ' . ( isset( $f['reason'] ) ? $f['reason'] : '' );
+									$this->action_button( 'ignore_item', 'Ignora', array( 'fp' => $fp, 'label' => $label, 'kind' => 'db' ), 'security-guardian-database', 'button-link' );
+								}
+								?>
+							</td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
@@ -609,6 +672,8 @@ class SG_Admin {
 					</tbody>
 				</table>
 			<?php endif; ?>
+
+			<?php $this->ignored_section( 'db', 'security-guardian-database' ); ?>
 		</div>
 		<?php
 	}

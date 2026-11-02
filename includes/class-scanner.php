@@ -402,6 +402,7 @@ class SG_Scanner {
 			$meta         = $this->classify( $t['type'], $t['reason'] );
 			$t['severity'] = $meta['severity'];
 			$t['detail']   = $meta['detail'];
+			$t['fp']       = SG_Whitelist::file_fp( $t['file'], $t['type'] );
 		}
 		unset( $t );
 

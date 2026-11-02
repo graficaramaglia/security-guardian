@@ -124,6 +124,7 @@ class SG_DB_Scanner {
 					'label'   => 'Opzione: ' . $row->option_name,
 					'reason'  => $reason,
 					'snippet' => $this->snippet( $row->option_value ),
+					'fp'      => SG_Whitelist::db_fp( 'option', $row->option_name, $row->option_value ),
 				);
 			}
 		}
@@ -165,6 +166,7 @@ class SG_DB_Scanner {
 					'label'   => $label,
 					'reason'  => $reason,
 					'snippet' => $this->snippet( $row->post_content ),
+					'fp'      => SG_Whitelist::db_fp( 'post', $row->ID, $row->post_content ),
 				);
 			}
 		}
@@ -188,6 +190,7 @@ class SG_DB_Scanner {
 					'label'   => 'Commento #' . $row->comment_ID,
 					'reason'  => $reason,
 					'snippet' => $this->snippet( $row->comment_content ),
+					'fp'      => SG_Whitelist::db_fp( 'comment', $row->comment_ID, $row->comment_content ),
 				);
 			}
 		}

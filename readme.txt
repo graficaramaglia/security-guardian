@@ -4,7 +4,7 @@ Tags: security, firewall, malware, scanner, brute force
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 2.1.0
+Stable tag: 2.2.0
 License: GPLv2 or later
 
 Protezione, scansione e ripristino per WordPress.
@@ -38,6 +38,11 @@ Security Guardian mette insieme in un unico plugin:
 * Dopo aver pulito un sito compromesso, cambia le password (admin, FTP, database) e le chiavi di sicurezza in wp-config.php.
 
 == Changelog ==
+
+= 2.2.0 =
+* Nuovo: pulsante "Ignora" su ogni elemento segnalato (scansione file e database). Gli elementi marcati come sicuri non compaiono più nei risultati né nelle email di notifica.
+* L'impronta di un elemento ignorato include il suo contenuto attuale: se quel file o contenuto in futuro cambia (es. viene infettato), torna automaticamente a essere segnalato.
+* Nuova sezione "Elementi ignorati" per rivedere e ripristinare in qualsiasi momento ciò che è stato ignorato.
 
 = 2.1.0 =
 * Nuovo: il firewall esclude automaticamente i webhook dei gateway di pagamento (PayPal, Stripe, Klarna e altri via WooCommerce), così le conferme di pagamento non rischiano mai di essere bloccate.
